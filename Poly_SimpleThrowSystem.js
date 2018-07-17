@@ -16,6 +16,12 @@
  * @desc The font size used for the item count.
  * @default 28
  *
+ * @param Disable Throw Menu
+ * @text Disable Throw Menu When Outside Battle
+ * @type boolean
+ * @desc Prevents players from accessing the throw menu outside battle.
+ * @default false
+ *
  * @help
  *
  * ===== PolyCement's Simple Throw System =====
@@ -32,6 +38,10 @@
  * allows you to make any item, weapon or armour throwable without having to
  * create any new skills, and allows custom behaviour to be defined through
  * the item's tags.
+ *
+ * The latest version, and license information, can be found at:
+ *
+ * https://github.com/PolyCement/rmmv-simplethrowsystem
  *
  * ===== Throwable Items =====
  *
@@ -88,6 +98,7 @@ var stsParams = {};
     var params = PluginManager.parameters('Poly_SimpleThrowSystem');
     stsParams.throwSkillTypeId = Number(params['Throw Skill Type ID']);
     stsParams.itemCountFontSize = Number(params['Item Count Font Size']);
+    stsParams.throwMenuDisabled = (params['Disable Throw Menu'] === 'true');
 
     // ===== DataManager =====
 
@@ -118,10 +129,7 @@ var stsParams = {};
             var currentItem = itemList[idx];
             // if a <Throwable> tag is found, create a skill for the item
             if (currentItem && currentItem.note.match(regexThrowable)) {
-                if (DataManager.isItem(currentItem))
-                    var newThrowItemSkill = DataManager.StsConvertItemToSkill(currentItem);
-                else
-                    var newThrowItemSkill = DataManager.StsConvertEquipToSkill(currentItem);
+                var newThrowItemSkill = DataManager.StsSkillify(currentItem);
                 $dataSkills.push(newThrowItemSkill);
                 // give the skill to all classes
                 for (var classIdx = 0; classIdx < $dataClasses.length; classIdx++) {
@@ -162,75 +170,32 @@ var stsParams = {};
         }
     };
 
-    // converts an item to a throw skill
-    DataManager.StsConvertItemToSkill = function(item) {
-        // use the item as a base - many properties are shared anyway
-        var newThrowItemSkill = JSON.parse(JSON.stringify(item));
-        // strip properties that skills don't have
-        delete newThrowItemSkill.consumable;
-        delete newThrowItemSkill.itypeId;
-        delete newThrowItemSkill.price;
-        // add missing fields
-        newThrowItemSkill.message1 = ' throws a ' + item.name + '!';
-        newThrowItemSkill.message2 = '';
-        newThrowItemSkill.mpCost = 0;
-        newThrowItemSkill.requiredWtypeId1 = 0;
-        newThrowItemSkill.requiredWtypeId2 = 0;
-        newThrowItemSkill.stypeId = stsParams.throwSkillTypeId;
-        newThrowItemSkill.tpCost = 0;
-        // remember the associated item
-        // this should be safe? it's either this or i slap a function on here
-        newThrowItemSkill.item = item;
-        // rewrite a couple fields
-        newThrowItemSkill.id = $dataSkills.length;
-        newThrowItemSkill.occasion = 1;
+    // template for item -> skill conversion
+    var skillTemplate = {'id':0,'animationId':0,'damage':{'critical':false,'elementId':0,'formula':'0','type':0,'variance':20},'description':'','effects':[],'hitType':0,'iconIndex':0,'message1':'','message2':'','mpCost':0,'name':'','note':'','occasion':1,'repeats':1,'requiredWtypeId1':0,'requiredWtypeId2':0,'scope':1,'speed':0,'stypeId':stsParams.throwSkillTypeId,'successRate':100,'tpCost':0,'tpGain':0};
+    // converts a non-skill object to a skill
+    DataManager.StsSkillify = function(obj) {
+        // take deep copies so nothing strange happens
+        var objCopy = JSON.parse(JSON.stringify(obj));
+        var newSkill = JSON.parse(JSON.stringify(skillTemplate));
+        // copy relevant properties from object
+        Object.getOwnPropertyNames(newSkill).forEach(function(property) {
+            if (objCopy.hasOwnProperty(property))
+                newSkill[property] = objCopy[property];
+        });
+        // set throw message
+        newSkill.message1 = ' throws a ' + newSkill.name + '!';
+        // reset occasion (items shouldn't be throwable outside battle)
+        newSkill.occasion = 1;
         // attempt a rough conversion of scope if necessary
-        if (item.scope === 7 || item.scope === 9 || item.scope === 11)
-            newThrowItemSkill.scope = 1;
-        else if (item.scope === 8 || item.scope === 10)
-            newThrowItemSkill.scope = 2;
-        return newThrowItemSkill;
-    };
-
-    // converts an equip to a throw skill
-    DataManager.StsConvertEquipToSkill = function(equip) {
-        // again, using the equip as a base
-        var newThrowEquipSkill = JSON.parse(JSON.stringify(equip));
-        // do armour/weapon specific stuff first to get em lookin the same
-        if (DataManager.isWeapon(equip)) {
-            delete newThrowEquipSkill.wtypeId;
-        }
-        else {
-            delete newThrowEquipSkill.atypeId;
-            newThrowEquipSkill.animationId = 0;
-        }
-        // strip more stuff
-        delete newThrowEquipSkill.params;
-        delete newThrowEquipSkill.price;
-        delete newThrowEquipSkill.traits;
-        // now add everything else that's missing for it to look like a skill
-        // TODO: this is a lot... maybe i could do something more clever here (and above)
-        newThrowEquipSkill.damage = {'critical':false,'elementId':0,'formula':'0','type':0,'variance':20};
-        newThrowEquipSkill.effects = [];
-        newThrowEquipSkill.hitType = 0;
-        newThrowEquipSkill.message1 = ' throws a ' + equip.name + '!';
-        newThrowEquipSkill.message2 = '';
-        newThrowEquipSkill.mpCost = 0;
-        newThrowEquipSkill.occasion = 1;
-        newThrowEquipSkill.repeats = 1;
-        newThrowEquipSkill.requiredWtypeId1 = 0;
-        newThrowEquipSkill.requiredWtypeId2 = 0;
-        newThrowEquipSkill.scope = 1;
-        newThrowEquipSkill.speed = 0;
-        newThrowEquipSkill.stypeId = stsParams.throwSkillTypeId;
-        newThrowEquipSkill.successRate = 100;
-        newThrowEquipSkill.tpCost = 0;
-        newThrowEquipSkill.tpGain = 0;
+        if (newSkill.scope === 7 || newSkill.scope === 9 || newSkill.scope === 11)
+            newSkill.scope = 1;
+        else if (newSkill.scope === 8 || newSkill.scope === 10)
+            newSkill.scope = 2;
         // remember the item
-        newThrowEquipSkill.item = equip;
-        // adjust id
-        newThrowEquipSkill.id = $dataSkills.length;
-        return newThrowEquipSkill;
+        newSkill.item = obj;
+        // set skill id
+        newSkill.id = $dataSkills.length;
+        return newSkill;
     };
     
     // ===== Game_BattlerBase =====
@@ -280,22 +245,23 @@ var stsParams = {};
     // ===== Window_SkillType =====
 
     // disable the throw skill menu when viewed outside battle
-    // might scrap this, or make it optional, since i can't
-    // think of a good way to override the method without overriding
-    // other plugins,
-    var _Window_SkillType_makeCommandList = Window_SkillType.prototype.makeCommandList;
-    Window_SkillType.prototype.makeCommandList = function() {
-        if (this._actor) {
-            var skillTypes = this._actor.addedSkillTypes();
-            skillTypes.sort(function(a, b) {
-                return a - b;
-            });
-            skillTypes.forEach(function(stypeId) {
-                var name = $dataSystem.skillTypes[stypeId];
-                var enabled = stypeId !== stsParams.throwSkillTypeId;
-                this.addCommand(name, 'skill', enabled, stypeId);
-            }, this);
-        }
-    };
+    // i can't think of a good way to override the method without overriding
+    // other plugins, but it's optional anyway so if there's a problem, turn it off!
+    if (stsParams.throwMenuDisabled) {
+        var _Window_SkillType_makeCommandList = Window_SkillType.prototype.makeCommandList;
+        Window_SkillType.prototype.makeCommandList = function() {
+            if (this._actor) {
+                var skillTypes = this._actor.addedSkillTypes();
+                skillTypes.sort(function(a, b) {
+                    return a - b;
+                });
+                skillTypes.forEach(function(stypeId) {
+                    var name = $dataSystem.skillTypes[stypeId];
+                    var enabled = stypeId !== stsParams.throwSkillTypeId;
+                    this.addCommand(name, 'skill', enabled, stypeId);
+                }, this);
+            }
+        };
+    }
 
 })();
