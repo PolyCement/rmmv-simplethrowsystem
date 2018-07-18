@@ -22,6 +22,10 @@
  * @desc Prevents players from accessing the throw menu outside battle.
  * @default false
  *
+ * @param Throw Message
+ * @desc Message to show when an item is thrown.
+ * @default throws a %1!
+ *
  * @help
  *
  * ===== PolyCement's Simple Throw System =====
@@ -99,6 +103,7 @@ var stsParams = {};
     stsParams.throwSkillTypeId = Number(params['Throw Skill Type ID']);
     stsParams.itemCountFontSize = Number(params['Item Count Font Size']);
     stsParams.throwMenuDisabled = (params['Disable Throw Menu'] === 'true');
+    stsParams.throwMessage = params['Throw Message'];
 
     // ===== DataManager =====
 
@@ -183,11 +188,11 @@ var stsParams = {};
                 newSkill[property] = objCopy[property];
         });
         // set throw message
-        newSkill.message1 = ' throws a ' + newSkill.name + '!';
+        newSkill.message1 = stsParams.throwMessage;
         // reset occasion (items shouldn't be throwable outside battle)
         newSkill.occasion = 1;
-        // attempt a rough conversion of scope if necessary
-        if (newSkill.scope === 7 || newSkill.scope === 9 || newSkill.scope === 11)
+        // alter scope so the item is being thrown at the enemy
+        if (newSkill.scope === 0 || newSkill.scope === 7 || newSkill.scope === 9 || newSkill.scope === 11)
             newSkill.scope = 1;
         else if (newSkill.scope === 8 || newSkill.scope === 10)
             newSkill.scope = 2;
