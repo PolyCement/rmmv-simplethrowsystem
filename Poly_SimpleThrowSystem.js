@@ -187,6 +187,8 @@ var stsParams = {};
             if (objCopy.hasOwnProperty(property))
                 newSkill[property] = objCopy[property];
         });
+		// meta data got lost somewhere.
+		this.extractMetadata(newSkill);
         // set throw message
         newSkill.message1 = stsParams.throwMessage;
         // reset occasion (items shouldn't be throwable outside battle)
